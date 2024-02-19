@@ -1,6 +1,6 @@
-import {WebSocketServer} from "ws"
+import { WebSocketServer } from "ws"
 
-export const startWsServer = (port) => {
+export const startWsServer = (port: number) => {
   const server = new WebSocketServer({ port }, () => {
     console.log("WS server started");
   })
