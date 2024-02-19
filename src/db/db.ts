@@ -1,20 +1,22 @@
-import { getIndex } from '../utils/helpers';
+import { WebSocket } from 'ws';
 
-type DbData = {
+export type DbData = {
   index: number;
   name: string;
   password: string;
-  memory: string[];
 };
 
-export const db = new Map<string, DbData>();
+export type User = {
+  name: string;
+  index: number;
+};
 
-db.set('11111', {
-  index: getIndex(),
-  name: '11111',
-  password: '11111',
-  memory: [],
-});
+type RoomId = number;
+export type RoomUsers = User[];
+
+export const db = new Map<string, DbData>();
+export const rooms = new Map<RoomId, RoomUsers>();
+export const wsUsers = new Map<WebSocket, User>();
 
 export const winners = [
   {

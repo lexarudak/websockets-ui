@@ -19,7 +19,7 @@ export const reg = (data: string, ws: WebSocket, server: Server) => {
   };
 
   if (!user) {
-    const newUser = createUser(name, password);
+    const newUser = createUser(name, password, ws);
     req.data = JSON.stringify({
       name,
       index: newUser.index,

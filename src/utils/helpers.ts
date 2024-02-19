@@ -1,6 +1,6 @@
-// import { WebSocket } from 'ws';
+import { WebSocket } from 'ws';
 
-import { db } from '../db/db';
+import { db, wsUsers } from '../db/db';
 
 const counter = () => {
   let id = 0;
@@ -11,14 +11,15 @@ const counter = () => {
 };
 
 export const getIndex = counter();
+export const getRoomIndex = counter();
 
-export const createUser = (name: string, password: string) => {
+export const createUser = (name: string, password: string, ws: WebSocket) => {
   const newUser = {
     index: getIndex(),
     name,
     password,
-    memory: [],
   };
   db.set(name, newUser);
+  wsUsers.set(ws, newUser);
   return newUser;
 };
