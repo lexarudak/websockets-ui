@@ -15,8 +15,9 @@ export const startWsServer = (port: number) => {
     ws.on('error', console.error);
 
     ws.on('message', (rawData) => {
+      console.log(rawData.toString());
       const { type, data }: DataObj = JSON.parse(rawData.toString());
-      controller[type](JSON.parse(data), ws);
+      controller[type](data, ws, server);
       console.log(`Received message ${data} `);
     });
   });

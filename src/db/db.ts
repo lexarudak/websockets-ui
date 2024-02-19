@@ -15,3 +15,14 @@ db.set('11111', {
   password: '11111',
   memory: [],
 });
+
+export const winners = [
+  {
+    name: 'valera',
+    wins: '2',
+  },
+  {
+    name: 'ivan',
+    wins: '1',
+  },
+];
