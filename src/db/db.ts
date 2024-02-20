@@ -12,11 +12,14 @@ export type User = {
 };
 
 type RoomId = number;
+type GameId = number;
 export type RoomUsers = User[];
 
 export const db = new Map<string, DbData>();
 export const rooms = new Map<RoomId, RoomUsers>();
+export const closedRooms = new Map<RoomId, RoomUsers>();
 export const wsUsers = new Map<WebSocket, User>();
+export const games = new Map<GameId, RoomUsers>();
 
 export const winners = [
   {

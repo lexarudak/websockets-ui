@@ -1,7 +1,6 @@
 import { WebSocket, Server } from 'ws';
 import { db } from '../../db/db';
-import { createUser } from '../../utils/helpers';
-import { update_winners } from './update_winners';
+import { createUser, update_room, update_winners } from '../../utils/helpers';
 
 export interface regData {
   id: number;
@@ -29,6 +28,7 @@ export const reg = (data: string, ws: WebSocket, server: Server) => {
 
     ws.send(JSON.stringify(req));
     update_winners(server);
+    update_room(server);
     return;
   }
 
@@ -53,4 +53,5 @@ export const reg = (data: string, ws: WebSocket, server: Server) => {
 
   ws.send(JSON.stringify(req));
   update_winners(server);
+  update_room(server);
 };
