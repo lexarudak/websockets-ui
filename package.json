@@ -7,7 +7,7 @@
         "start": "npm run build && node dist/server.js",
         "start:dev": "ts-node-dev --respawn --transpile-only ./index.ts",
         "ts-watch": "tsc --watch",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "build": "webpack --mode production"
     },
     "author": "Andrei Auchynnikau",
     "keywords": [],
