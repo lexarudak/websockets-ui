@@ -18,6 +18,6 @@ export const add_user_to_room = (
     closedRooms.set(indexRoom, room);
     rooms.delete(indexRoom);
     update_room(server);
-    create_game(room, server);
+    create_game(room);
   }
 };

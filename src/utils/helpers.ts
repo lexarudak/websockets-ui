@@ -1,6 +1,15 @@
 import { WebSocket, Server } from 'ws';
 
-import { RoomUsers, db, games, rooms, winners, wsUsers } from '../db/db';
+import {
+  Field,
+  Ship,
+  User,
+  db,
+  games,
+  rooms,
+  winners,
+  wsUsers,
+} from '../db/db';
 
 const counter = () => {
   let id = 0;
@@ -19,11 +28,13 @@ export const createUser = (name: string, password: string, ws: WebSocket) => {
     index: getIndex(),
     name,
     password,
+    ws,
   };
   db.set(name, newUser);
   wsUsers.set(ws, {
     index: newUser.index,
     name,
+    ws,
   });
   return newUser;
 };
@@ -40,7 +51,7 @@ export const sendToAll = (type: string, data: string, server: Server) => {
   });
 };
 
-export const getRoomsJson = (roomsArr: [number, RoomUsers][]) => {
+export const getRoomsJson = (roomsArr: [number, User[]][]) => {
   return JSON.stringify(
     roomsArr.map(([roomId, roomUsers]) => {
       return {
@@ -65,17 +76,34 @@ export const update_room = (server: Server) => {
   );
 };
 
-export const create_game = (room: RoomUsers, server: Server) => {
-  const [, user2] = room;
+export const create_game = (room: User[]) => {
   const idGame = getGameIndex();
   games.set(idGame, room);
 
-  sendToAll(
-    'create_game',
-    JSON.stringify({
-      idGame,
-      idPlayer: user2.index,
-    }),
-    server,
+  room.forEach(({ ws }, ind) => {
+    if (ws) {
+      ws.send(
+        JSON.stringify({
+          type: 'create_game',
+          id: 0,
+          data: JSON.stringify({
+            idGame,
+            idPlayer: ind,
+          }),
+        }),
+      );
+    }
+  });
+};
+
+// const addHorizontal = (arr, x, y, length) => {};
+
+export const getInitField = (ships: Ship[]): Field => {
+  const emptyField = Array.from({ length: 10 }, () =>
+    Array.from({ length: 10 }, () => 0),
   );
+
+  console.log(ships);
+  // ships.forEach(({ position: { x, y }, direction, length }) => {});
+  return emptyField;
 };
