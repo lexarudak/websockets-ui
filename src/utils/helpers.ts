@@ -96,14 +96,35 @@ export const create_game = (room: User[]) => {
   });
 };
 
-// const addHorizontal = (arr, x, y, length) => {};
+const addShip = (
+  x: number,
+  y: number,
+  length: number,
+  direction: boolean,
+  shipNumber: number,
+) => {
+  const map = new Map<number, number>();
+  for (let i = 0; i < length; i++) {
+    const value = x + y * 10 + (direction ? i * 10 : i);
+    map.set(value, shipNumber);
+  }
+  return map;
+};
 
-export const getInitField = (ships: Ship[]): Field => {
-  const emptyField = Array.from({ length: 10 }, () =>
-    Array.from({ length: 10 }, () => 0),
+export const getInitField = (ships: Ship[]): Field =>
+  ships.map(({ position: { x, y }, direction, length }, id) =>
+    addShip(x, y, length, direction, id),
   );
 
-  console.log(ships);
-  // ships.forEach(({ position: { x, y }, direction, length }) => {});
-  return emptyField;
+export const getRestList = (field: Field) => {
+  const arr = field
+    .flat(1)
+    .map((map) => Array.from(map.keys()))
+    .flat(1);
+  const validSet = new Set(arr);
+  const set = new Set<number>();
+  for (let i = 0; i < 100; i++) {
+    if (!validSet.has(i)) set.add(i);
+  }
+  return set;
 };

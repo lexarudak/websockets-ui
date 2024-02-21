@@ -18,7 +18,7 @@ type GameId = number;
 type ShipType = 'small' | 'medium' | 'large' | 'huge';
 type IndexPlayer = 0 | 1;
 
-export type Field = number[][];
+export type Field = Map<number, number>[];
 export type Fields = Partial<Record<IndexPlayer, Field>>;
 
 export type Ship = {
@@ -31,6 +31,8 @@ export type Ship = {
   length: number;
 };
 export type Ships = Partial<Record<IndexPlayer, Ship[]>>;
+
+export type RestLists = Partial<Record<IndexPlayer, Set<number>>>;
 
 export type InitShipsInfo = {
   gameId: number;
@@ -45,6 +47,7 @@ export const wsUsers = new Map<WebSocket, User>();
 export const games = new Map<GameId, User[]>();
 export const allFields = new Map<GameId, Fields>();
 export const allShips = new Map<GameId, Ships>();
+export const allRestLists = new Map<GameId, RestLists>();
 
 export const winners = [
   {
