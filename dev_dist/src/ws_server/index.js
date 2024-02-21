@@ -11,7 +11,6 @@ var startWsServer = function (port) {
             console.log(rawData.toString());
             var _a = JSON.parse(rawData.toString()), type = _a.type, data = _a.data;
             controller_1.controller[type](data, ws, server);
-            console.log("Received message ".concat(type, " with data ").concat(data, " "));
         });
     });
 };

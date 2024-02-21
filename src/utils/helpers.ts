@@ -1,9 +1,16 @@
 import { WebSocket, Server } from 'ws';
 
 import {
+  Attack,
+  AttackAction,
   Field,
+  IndexPlayer,
   Ship,
   User,
+  allFields,
+  allRestLists,
+  allShips,
+  allTurns,
   db,
   games,
   rooms,
@@ -127,4 +134,164 @@ export const getRestList = (field: Field) => {
     if (!validSet.has(i)) set.add(i);
   }
   return set;
+};
+
+export const start_game = (gameId: number) => {
+  const users = games.get(gameId);
+  allTurns.set(gameId, 0);
+
+  if (users) {
+    users.forEach(({ ws }, ind) => {
+      const ship = allShips.get(gameId);
+      if (!ship) return;
+
+      const data = {
+        ships: ship[ind as IndexPlayer],
+        currentPlayerIndex: ind,
+      };
+
+      ws.send(
+        JSON.stringify({
+          type: 'start_game',
+          data: JSON.stringify(data),
+          id: 0,
+        }),
+      );
+    });
+  }
+};
+
+export const turn = (gameId: number) => {
+  const users = games.get(gameId);
+  const turn = allTurns.get(gameId);
+
+  if (users && turn !== undefined) {
+    users.forEach(({ ws }) => {
+      ws.send(
+        JSON.stringify({
+          type: 'turn',
+          id: 0,
+          data: JSON.stringify({
+            currentPlayer: turn ? 0 : 1,
+          }),
+        }),
+      );
+    });
+
+    allTurns.set(gameId, turn ? 0 : 1);
+  }
+};
+
+const sendAttackMessage = (
+  gameId: number,
+  indexPlayer: number,
+  x: number,
+  y: number,
+  action: AttackAction,
+) => {
+  const users = games.get(gameId);
+  if (!users) return;
+
+  const data = JSON.stringify({
+    position: {
+      x,
+      y,
+    },
+    currentPlayer: indexPlayer,
+    status: action,
+  });
+  users.forEach(({ ws }) => {
+    ws.send(
+      JSON.stringify({
+        type: 'attack',
+        data,
+        index: 0,
+      }),
+    );
+  });
+};
+
+const lookAround = (
+  x: number,
+  y: number,
+  list: Set<number>,
+  gameId: number,
+  indexPlayer: number,
+) => {
+  [
+    [x - 1, y - 1],
+    [x, y - 1],
+    [x + 1, y - 1],
+    [x - 1, y],
+    [x + 1, y],
+    [x - 1, y + 1],
+    [x, y + 1],
+    [x + 1, y + 1],
+  ].forEach(([newX, newY]) => {
+    const dot = newX + newY * 10;
+    if (list.has(dot)) {
+      list.delete(dot);
+      sendAttackMessage(gameId, indexPlayer, newX, newY, 'miss');
+    }
+  });
+};
+
+export const killShip = (
+  ship: Ship,
+  gameId: number,
+  indexPlayer: number,
+  list: Set<number>,
+) => {
+  for (let i = 0; i < ship.length; i++) {
+    const x = ship.direction ? ship.position.x : ship.position.x + i;
+    const y = ship.direction ? ship.position.y + i : ship.position.y;
+    lookAround(x, y, list, gameId, indexPlayer);
+    sendAttackMessage(gameId, indexPlayer, x, y, 'killed');
+  }
+};
+
+export const lastShip = (field: Field) =>
+  field.every((ship) => ship.size === 0);
+
+export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
+  if (allTurns.get(gameId) !== indexPlayer) return false;
+  const dot = x + y * 10;
+
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return false;
+  const list = restLists[indexPlayer ? 0 : 1];
+  if (!list) return false;
+
+  if (list.has(dot)) {
+    list.delete(dot);
+    sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
+    turn(gameId);
+    return false;
+  }
+
+  const fields = allFields.get(gameId);
+  if (!fields) return false;
+  const field = fields[indexPlayer ? 0 : 1];
+  if (!field) return false;
+  field.forEach((ship) => {
+    if (ship.has(dot) && ship.size > 1) {
+      sendAttackMessage(gameId, indexPlayer, x, y, 'shot');
+      ship.delete(dot);
+    }
+    if (ship.has(dot) && ship.size === 1) {
+      const realShips = allShips.get(gameId);
+      if (!realShips) return false;
+      const realShip = realShips[indexPlayer ? 0 : 1];
+      if (!realShip) return false;
+      const shipInd = ship.get(dot);
+      if (shipInd === undefined) return false;
+      killShip(realShip[shipInd], gameId, indexPlayer, list);
+      ship.delete(dot);
+
+      if (lastShip(field)) {
+        return true;
+      }
+      turn(gameId);
+    }
+  });
 };

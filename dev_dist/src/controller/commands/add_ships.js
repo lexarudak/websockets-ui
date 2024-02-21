@@ -19,18 +19,24 @@ var add_ships = function (data) {
     var gameId = info.gameId, indexPlayer = info.indexPlayer, ships = info.ships;
     var currentShips = {};
     var currentFields = {};
+    var currentRestList = {};
+    var field = (0, helpers_1.getInitField)(ships);
     currentShips[indexPlayer] = ships;
     currentFields[indexPlayer] = (0, helpers_1.getInitField)(ships);
+    currentRestList[indexPlayer] = (0, helpers_1.getRestList)(field);
     if (db_1.allShips.has(gameId)) {
         var prevUserShips = db_1.allShips.get(gameId);
         db_1.allShips.set(gameId, __assign(__assign({}, prevUserShips), currentShips));
         var prevUserField = db_1.allFields.get(gameId);
         db_1.allFields.set(gameId, __assign(__assign({}, prevUserField), currentFields));
-        console.log('GO', db_1.allFields.get(gameId));
+        var prevUserRestList = db_1.allRestLists.get(gameId);
+        db_1.allRestLists.set(gameId, __assign(__assign({}, prevUserRestList), currentRestList));
+        (0, helpers_1.start_game)(gameId);
+        (0, helpers_1.turn)(gameId);
         return;
     }
     db_1.allShips.set(gameId, currentShips);
     db_1.allFields.set(gameId, currentFields);
-    console.log('SET', db_1.allFields.get(gameId));
+    db_1.allRestLists.set(gameId, currentRestList);
 };
 exports.add_ships = add_ships;

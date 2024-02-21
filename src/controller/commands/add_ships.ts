@@ -7,7 +7,12 @@ import {
   allRestLists,
   allShips,
 } from '../../db/db';
-import { getInitField, getRestList } from '../../utils/helpers';
+import {
+  getInitField,
+  getRestList,
+  start_game,
+  turn,
+} from '../../utils/helpers';
 
 export const add_ships = (data: string) => {
   const info: InitShipsInfo = JSON.parse(data);
@@ -30,14 +35,12 @@ export const add_ships = (data: string) => {
     const prevUserRestList = allRestLists.get(gameId);
     allRestLists.set(gameId, { ...prevUserRestList, ...currentRestList });
 
-    console.log('GO', allFields.get(gameId));
+    start_game(gameId);
+    turn(gameId);
     return;
   }
 
   allShips.set(gameId, currentShips);
   allFields.set(gameId, currentFields);
   allRestLists.set(gameId, currentRestList);
-  console.log('Ships', allShips.get(gameId));
-  console.log('fields', allFields.get(gameId));
-  console.log('rest', allRestLists.get(gameId));
 };

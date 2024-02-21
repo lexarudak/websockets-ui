@@ -18,7 +18,6 @@ export const startWsServer = (port: number) => {
       console.log(rawData.toString());
       const { type, data }: DataObj = JSON.parse(rawData.toString());
       controller[type](data, ws, server);
-      console.log(`Received message ${type} with data ${data} `);
     });
   });
 };

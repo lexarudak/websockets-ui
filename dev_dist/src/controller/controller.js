@@ -6,9 +6,11 @@ var reg_1 = require("./commands/reg");
 var add_user_to_room_1 = require("./commands/add_user_to_room");
 var create_room_1 = require("./commands/create_room");
 var add_ships_1 = require("./commands/add_ships");
+var attack_1 = require("./commands/attack");
 exports.controller = {
     reg: reg_1.reg,
     create_room: create_room_1.create_room,
     add_user_to_room: add_user_to_room_1.add_user_to_room,
     add_ships: add_ships_1.add_ships,
+    attack: attack_1.attack,
 };
