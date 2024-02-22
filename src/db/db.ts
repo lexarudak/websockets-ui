@@ -66,5 +66,3 @@ export const allTurns = new Map<GameId, IndexPlayer>();
 export const winners = new Map<string, number>();
 
 winners.set('test winner', 1);
-winners.set('test winner 3', 3);
-winners.set('test winner 2', 2);
