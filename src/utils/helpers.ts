@@ -5,6 +5,7 @@ import {
   AttackAction,
   Field,
   IndexPlayer,
+  RandomAttack,
   Ship,
   User,
   allFields,
@@ -63,14 +64,32 @@ export const getRoomsJson = (roomsArr: [number, User[]][]) => {
     roomsArr.map(([roomId, roomUsers]) => {
       return {
         roomId,
-        roomUsers,
+        roomUsers: roomUsers.map(({ name, index }) => ({ name, index })),
       };
     }),
   );
 };
 
-export const update_winners = (server: Server) => {
-  sendToAll('update_winners', JSON.stringify(winners), server);
+export const update_winners = (server: Server, ws?: WebSocket) => {
+  if (ws) {
+    const user = wsUsers.get(ws);
+    if (user) {
+      const { name } = user;
+      const win = winners.get(name) || 0;
+      winners.set(name, win + 1);
+    }
+  }
+  const arr = Array.from(winners.entries());
+
+  sendToAll(
+    'update_winners',
+    JSON.stringify(
+      arr
+        .map(([name, wins]) => ({ name, wins }))
+        .sort(({ wins: a }, { wins: b }) => b - a),
+    ),
+    server,
+  );
 };
 
 export const update_room = (server: Server) => {
@@ -211,6 +230,25 @@ const sendAttackMessage = (
   });
 };
 
+export const finish = (gameId: number, indexPlayer: number) => {
+  const users = games.get(gameId);
+  if (!users) return;
+
+  const data = JSON.stringify({
+    winPlayer: indexPlayer,
+  });
+
+  users.forEach(({ ws }) => {
+    ws.send(
+      JSON.stringify({
+        type: 'finish',
+        data,
+        index: 0,
+      }),
+    );
+  });
+};
+
 const lookAround = (
   x: number,
   y: number,
@@ -251,47 +289,67 @@ export const killShip = (
 };
 
 export const lastShip = (field: Field) =>
-  field.every((ship) => ship.size === 0);
+  !field.some((ship) => ship.size !== 0);
 
 export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
-  if (allTurns.get(gameId) !== indexPlayer) return false;
+  if (allTurns.get(gameId) !== indexPlayer) return;
   const dot = x + y * 10;
 
   const restLists = allRestLists.get(gameId);
-  if (!restLists) return false;
+  if (!restLists) return;
   const list = restLists[indexPlayer ? 0 : 1];
-  if (!list) return false;
+  if (!list) return;
 
   if (list.has(dot)) {
     list.delete(dot);
     sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
     turn(gameId);
-    return false;
+    return;
   }
 
   const fields = allFields.get(gameId);
-  if (!fields) return false;
+  if (!fields) return;
   const field = fields[indexPlayer ? 0 : 1];
-  if (!field) return false;
-  field.forEach((ship) => {
-    if (ship.has(dot) && ship.size > 1) {
-      sendAttackMessage(gameId, indexPlayer, x, y, 'shot');
-      ship.delete(dot);
-    }
-    if (ship.has(dot) && ship.size === 1) {
-      const realShips = allShips.get(gameId);
-      if (!realShips) return false;
-      const realShip = realShips[indexPlayer ? 0 : 1];
-      if (!realShip) return false;
-      const shipInd = ship.get(dot);
-      if (shipInd === undefined) return false;
-      killShip(realShip[shipInd], gameId, indexPlayer, list);
-      ship.delete(dot);
+  if (!field) return;
 
-      if (lastShip(field)) {
-        return true;
-      }
-      turn(gameId);
-    }
-  });
+  const ship = field.find((row) => row.has(dot));
+  if (!ship) return;
+
+  if (ship.size > 1) {
+    sendAttackMessage(gameId, indexPlayer, x, y, 'shot');
+    ship.delete(dot);
+    return;
+  }
+
+  const realShips = allShips.get(gameId);
+  if (!realShips) return;
+  const realShip = realShips[indexPlayer ? 0 : 1];
+  if (!realShip) return;
+  const shipInd = ship.get(dot);
+  if (shipInd === undefined) return;
+  killShip(realShip[shipInd], gameId, indexPlayer, list);
+  ship.delete(dot);
+
+  if (lastShip(field)) {
+    finish(gameId, indexPlayer);
+    return true;
+  }
+  turn(gameId);
+};
+
+export const randomAttackHandler = ({ indexPlayer, gameId }: RandomAttack) => {
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return false;
+  const list = restLists[indexPlayer ? 0 : 1];
+  if (!list) return false;
+
+  const arr = Array.from(list);
+  const randomDot = arr[Math.floor(Math.random() * arr.length)];
+  list.delete(randomDot);
+  const stringDot = randomDot.toString();
+
+  const x = Number(stringDot[1] || stringDot[0]);
+  const y = Number(stringDot[1] ? stringDot[0] : 0);
+  sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
+  turn(gameId);
 };

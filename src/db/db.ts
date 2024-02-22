@@ -41,6 +41,11 @@ export type Attack = {
   indexPlayer: IndexPlayer;
 };
 
+export type RandomAttack = {
+  gameId: number;
+  indexPlayer: IndexPlayer;
+};
+
 export type AttackAction = 'miss' | 'killed' | 'shot';
 
 export type InitShipsInfo = {
@@ -58,14 +63,8 @@ export const allFields = new Map<GameId, Fields>();
 export const allShips = new Map<GameId, Ships>();
 export const allRestLists = new Map<GameId, RestLists>();
 export const allTurns = new Map<GameId, IndexPlayer>();
+export const winners = new Map<string, number>();
 
-export const winners = [
-  {
-    name: 'valera',
-    wins: '2',
-  },
-  {
-    name: 'ivan',
-    wins: '1',
-  },
-];
+winners.set('test winner', 1);
+winners.set('test winner 3', 3);
+winners.set('test winner 2', 2);
