@@ -1,5 +1,5 @@
 import { WebSocket, Server } from 'ws';
-import { closedRooms, rooms, wsUsers } from '../../db/db';
+import { rooms, wsUsers } from '../../db/db';
 import { create_game, update_room } from '../../utils/helpers';
 
 export const add_user_to_room = (
@@ -15,7 +15,6 @@ export const add_user_to_room = (
   const [{ index }] = room;
   if (index !== user.index) {
     room.push(user);
-    closedRooms.set(indexRoom, room);
     rooms.delete(indexRoom);
     update_room(server);
     create_game(room);

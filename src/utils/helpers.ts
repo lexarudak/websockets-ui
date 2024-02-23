@@ -44,6 +44,7 @@ export const createUser = (name: string, password: string, ws: WebSocket) => {
     name,
     ws,
   });
+  console.log('Result: ', `User ${name} login`);
   return newUser;
 };
 
@@ -90,6 +91,7 @@ export const update_winners = (server: Server, ws?: WebSocket) => {
     ),
     server,
   );
+  console.log('Result: winners updated');
 };
 
 export const update_room = (server: Server) => {
@@ -100,6 +102,7 @@ export const update_room = (server: Server) => {
     roomsArr.length ? getRoomsJson(roomsArr) : '[]',
     server,
   );
+  console.log('Result: ', `room updated`);
 };
 
 export const create_game = (room: User[]) => {
@@ -120,6 +123,7 @@ export const create_game = (room: User[]) => {
       );
     }
   });
+  console.log('Result: ', `game created`);
 };
 
 const addShip = (
@@ -177,6 +181,7 @@ export const start_game = (gameId: number) => {
         }),
       );
     });
+    console.log('Result: ', `game starts`);
   }
 };
 
@@ -198,6 +203,7 @@ export const turn = (gameId: number) => {
     });
 
     allTurns.set(gameId, turn ? 0 : 1);
+    console.log('Result: ', `next player turn`);
   }
 };
 
@@ -230,9 +236,10 @@ const sendAttackMessage = (
   });
 };
 
-export const finish = (gameId: number, indexPlayer: number) => {
+export const finish = (gameId: number, indexPlayer: number, server: Server) => {
   const users = games.get(gameId);
   if (!users) return;
+  const { name, ws } = users[indexPlayer];
 
   const data = JSON.stringify({
     winPlayer: indexPlayer,
@@ -247,6 +254,10 @@ export const finish = (gameId: number, indexPlayer: number) => {
       }),
     );
   });
+  games.delete(gameId);
+  update_winners(server, ws);
+
+  console.log('Result: ', `User ${name} wins`);
 };
 
 const lookAround = (
@@ -286,12 +297,16 @@ export const killShip = (
     lookAround(x, y, list, gameId, indexPlayer);
     sendAttackMessage(gameId, indexPlayer, x, y, 'killed');
   }
+  console.log('Result: ', `Ship ${ship.type} was killed`);
 };
 
 export const lastShip = (field: Field) =>
   !field.some((ship) => ship.size !== 0);
 
-export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
+export const attackHandler = (
+  { x, y, gameId, indexPlayer }: Attack,
+  server: Server,
+) => {
   if (allTurns.get(gameId) !== indexPlayer) return;
   const dot = x + y * 10;
 
@@ -304,6 +319,8 @@ export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
     list.delete(dot);
     sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
     turn(gameId);
+
+    console.log('Result: ', `miss`);
     return;
   }
 
@@ -318,6 +335,8 @@ export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
   if (ship.size > 1) {
     sendAttackMessage(gameId, indexPlayer, x, y, 'shot');
     ship.delete(dot);
+
+    console.log('Result: ', `shot`);
     return;
   }
 
@@ -331,19 +350,26 @@ export const attackHandler = ({ x, y, gameId, indexPlayer }: Attack) => {
   ship.delete(dot);
 
   if (lastShip(field)) {
-    finish(gameId, indexPlayer);
-    return true;
+    finish(gameId, indexPlayer, server);
   }
   turn(gameId);
 };
 
-export const randomAttackHandler = ({ indexPlayer, gameId }: RandomAttack) => {
+export const randomAttackHandler = (
+  { indexPlayer, gameId }: RandomAttack,
+  server: Server,
+) => {
   const restLists = allRestLists.get(gameId);
   if (!restLists) return false;
   const list = restLists[indexPlayer ? 0 : 1];
   if (!list) return false;
 
   const arr = Array.from(list);
+
+  if (!arr.length) {
+    finish(gameId, indexPlayer ? 0 : 1, server);
+  }
+
   const randomDot = arr[Math.floor(Math.random() * arr.length)];
   list.delete(randomDot);
   const stringDot = randomDot.toString();
@@ -352,4 +378,26 @@ export const randomAttackHandler = ({ indexPlayer, gameId }: RandomAttack) => {
   const y = Number(stringDot[1] ? stringDot[0] : 0);
   sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
   turn(gameId);
+  console.log('Result: ', `random shot`);
+};
+
+export const closeOpenedRoom = (server: Server) => {
+  Array.from(rooms.entries()).forEach(([key, users]) => {
+    users.forEach((user) => {
+      if (!server.clients.has(user.ws)) {
+        rooms.delete(key);
+        wsUsers.delete(user.ws);
+        console.log('Result: ', `User ${user.name} leaves`);
+        update_room(server);
+      }
+    });
+  });
+
+  Array.from(games.entries()).forEach(([key, users]) => {
+    users.forEach((user, ind) => {
+      if (!server.clients.has(user.ws)) {
+        finish(key, ind ? 0 : 1, server);
+      }
+    });
+  });
 };

@@ -17,7 +17,7 @@ export const reg = (data: string, ws: WebSocket, server: Server) => {
     data: '',
   };
 
-  if (!user) {
+  if (!user || user.password === password) {
     const newUser = createUser(name, password, ws);
     req.data = JSON.stringify({
       name,
@@ -43,15 +43,4 @@ export const reg = (data: string, ws: WebSocket, server: Server) => {
     ws.send(JSON.stringify(req));
     return;
   }
-
-  req.data = JSON.stringify({
-    name,
-    index: user.index,
-    error: false,
-    errorText: '',
-  });
-
-  ws.send(JSON.stringify(req));
-  update_winners(server);
-  update_room(server);
 };
