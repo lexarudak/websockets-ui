@@ -392,7 +392,7 @@ export const singleAttackHandler = (
 
   const realShips = allShips.get(gameId);
   if (!realShips) return;
-  const realShip = realShips[0];
+  const realShip = realShips[1];
   if (!realShip) return;
   const shipInd = ship.get(dot);
   if (shipInd === undefined) return;

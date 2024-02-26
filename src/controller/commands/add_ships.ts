@@ -15,6 +15,7 @@ import {
   start_single_game,
   turn,
 } from '../../utils/helpers';
+import { botShips as botShipsList } from '../../bot/bot_ships';
 
 export const add_ships = (data: string) => {
   const info: InitShipsInfo = JSON.parse(data);
@@ -26,7 +27,7 @@ export const add_ships = (data: string) => {
   const field = getInitField(ships);
 
   currentShips[indexPlayer] = ships;
-  currentFields[indexPlayer] = getInitField(ships);
+  currentFields[indexPlayer] = field;
   currentRestList[indexPlayer] = getRestList(field);
 
   if (allShips.has(gameId)) {
@@ -43,10 +44,26 @@ export const add_ships = (data: string) => {
   }
 
   if (isSingleMode(gameId)) {
-    currentShips[1] = [...ships];
-    currentFields[1] = getInitField(ships);
-    currentRestList[1] = getRestList(field);
+    const botShips =
+      botShipsList[Math.floor(Math.random() * botShipsList.length)];
+    const botField = getInitField(botShips);
+
+    console.log(
+      botShips.map(({ position: { x, y }, direction, length }) => ({
+        x,
+        y,
+        direction,
+        length,
+      })),
+    );
+
+    currentShips[1] = [...botShips];
+    currentFields[1] = botField;
+    currentRestList[1] = getRestList(botField);
   }
+
+  console.log(currentShips);
+  console.log(currentFields);
 
   allShips.set(gameId, currentShips);
   allFields.set(gameId, currentFields);

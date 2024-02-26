@@ -100,7 +100,7 @@ export const botAttack = (gameId: number, server: Server) => {
 
   const realShips = allShips.get(gameId);
   if (!realShips) return;
-  const realShip = realShips[1];
+  const realShip = realShips[0];
   if (!realShip) return;
   const shipInd = ship.get(dot);
   if (shipInd === undefined) return;
