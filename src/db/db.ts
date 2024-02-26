@@ -63,5 +63,8 @@ export const allShips = new Map<GameId, Ships>();
 export const allRestLists = new Map<GameId, RestLists>();
 export const allTurns = new Map<GameId, IndexPlayer>();
 export const winners = new Map<string, number>();
+export const singlePlayers = new Map<number, User>();
+export const allCleanPlaces = new Map<number, Set<number>>();
+export const allCurrentAttacks = new Map<number, Array<number>>();
 
 winners.set('test winner', 1);

@@ -10,7 +10,9 @@ import {
 import {
   getInitField,
   getRestList,
+  isSingleMode,
   start_game,
+  start_single_game,
   turn,
 } from '../../utils/helpers';
 
@@ -40,7 +42,17 @@ export const add_ships = (data: string) => {
     return;
   }
 
+  if (isSingleMode(gameId)) {
+    currentShips[1] = [...ships];
+    currentFields[1] = getInitField(ships);
+    currentRestList[1] = getRestList(field);
+  }
+
   allShips.set(gameId, currentShips);
   allFields.set(gameId, currentFields);
   allRestLists.set(gameId, currentRestList);
+
+  if (isSingleMode(gameId)) {
+    start_single_game(gameId);
+  }
 };

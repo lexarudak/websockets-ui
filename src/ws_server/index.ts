@@ -23,11 +23,11 @@ export const startWsServer = (port: number) => {
 
     ws.on('message', (rawData) => {
       const { type, data }: DataObj = JSON.parse(rawData.toString());
-      console.log('Get message with type: ', type);
+      console.log('Get message with type: ', { type });
       try {
-        console.log('And with data: ', JSON.parse(data));
+        console.log('Data: ', JSON.parse(data));
       } catch {
-        console.log('And without data');
+        console.log('No data');
       }
 
       controller[type](data, ws, server);

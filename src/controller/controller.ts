@@ -4,6 +4,8 @@ import { create_room } from './commands/create_room';
 import { add_ships } from './commands/add_ships';
 import { attack } from './commands/attack';
 import { randomAttack } from './commands/randomAttack';
+import { single_play } from './commands/single_play';
+// import { create_game } from './commands/create_game';
 
 export const controller = {
   reg,
@@ -12,4 +14,6 @@ export const controller = {
   add_ships,
   attack,
   randomAttack,
+  single_play,
+  // create_game,
 };

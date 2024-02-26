@@ -18,6 +18,7 @@ import {
   winners,
   wsUsers,
 } from '../db/db';
+import { botAttack } from '../bot/bot';
 
 const counter = () => {
   let id = 0;
@@ -44,7 +45,7 @@ export const createUser = (name: string, password: string, ws: WebSocket) => {
     name,
     ws,
   });
-  console.log('Result: ', `User ${name} login`);
+  console.log('Result: ', `user ${name} login`);
   return newUser;
 };
 
@@ -185,6 +186,27 @@ export const start_game = (gameId: number) => {
   }
 };
 
+export const start_single_game = (gameId: number) => {
+  const ship = allShips.get(gameId);
+  const user = games.get(gameId);
+  if (!ship || !user) return;
+
+  const data = {
+    ships: ship[0],
+    currentPlayerIndex: 0,
+  };
+
+  user[0].ws.send(
+    JSON.stringify({
+      type: 'start_game',
+      data: JSON.stringify(data),
+      id: 0,
+    }),
+  );
+
+  console.log('Result: ', `single game starts`);
+};
+
 export const turn = (gameId: number) => {
   const users = games.get(gameId);
   const turn = allTurns.get(gameId);
@@ -207,7 +229,7 @@ export const turn = (gameId: number) => {
   }
 };
 
-const sendAttackMessage = (
+export const sendAttackMessage = (
   gameId: number,
   indexPlayer: number,
   x: number,
@@ -236,6 +258,32 @@ const sendAttackMessage = (
   });
 };
 
+export const finishSingle = (
+  gameId: number,
+  indexPlayer: number,
+  server: Server,
+) => {
+  const users = games.get(gameId);
+  if (!users) return;
+  const { name, ws } = users[0];
+
+  const data = JSON.stringify({
+    winPlayer: indexPlayer,
+  });
+
+  ws.send(
+    JSON.stringify({
+      type: 'finish',
+      data,
+      index: 0,
+    }),
+  );
+  games.delete(gameId);
+  if (!indexPlayer) update_winners(server, ws);
+
+  console.log('Result: ', `user ${name} wins`);
+};
+
 export const finish = (gameId: number, indexPlayer: number, server: Server) => {
   const users = games.get(gameId);
   if (!users) return;
@@ -257,7 +305,7 @@ export const finish = (gameId: number, indexPlayer: number, server: Server) => {
   games.delete(gameId);
   update_winners(server, ws);
 
-  console.log('Result: ', `User ${name} wins`);
+  console.log('Result: ', `user ${name} wins`);
 };
 
 const lookAround = (
@@ -266,6 +314,7 @@ const lookAround = (
   list: Set<number>,
   gameId: number,
   indexPlayer: number,
+  cleanField?: Set<number>,
 ) => {
   [
     [x - 1, y - 1],
@@ -278,8 +327,10 @@ const lookAround = (
     [x + 1, y + 1],
   ].forEach(([newX, newY]) => {
     const dot = newX + newY * 10;
-    if (list.has(dot)) {
+    if (list.has(dot) && newX >= 0 && newY >= 0 && newX < 10 && newY < 10) {
       list.delete(dot);
+      if (cleanField) cleanField.delete(dot);
+      console.log('Result: ', 'look around', { newX, newY });
       sendAttackMessage(gameId, indexPlayer, newX, newY, 'miss');
     }
   });
@@ -290,18 +341,69 @@ export const killShip = (
   gameId: number,
   indexPlayer: number,
   list: Set<number>,
+  cleanField?: Set<number>,
 ) => {
   for (let i = 0; i < ship.length; i++) {
     const x = ship.direction ? ship.position.x : ship.position.x + i;
     const y = ship.direction ? ship.position.y + i : ship.position.y;
-    lookAround(x, y, list, gameId, indexPlayer);
+    lookAround(x, y, list, gameId, indexPlayer, cleanField);
     sendAttackMessage(gameId, indexPlayer, x, y, 'killed');
   }
-  console.log('Result: ', `Ship ${ship.type} was killed`);
+  console.log('Result: ', `ship ${ship.type} was killed`);
 };
 
 export const lastShip = (field: Field) =>
   !field.some((ship) => ship.size !== 0);
+
+export const singleAttackHandler = (
+  { x, y, gameId }: Attack,
+  server: Server,
+) => {
+  const dot = x + y * 10;
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return;
+  const list = restLists[1];
+  if (!list) return;
+
+  if (list.has(dot)) {
+    list.delete(dot);
+    sendAttackMessage(gameId, 0, x, y, 'miss');
+    botAttack(gameId, server);
+
+    console.log('Result: ', `miss`);
+    return;
+  }
+
+  const fields = allFields.get(gameId);
+  if (!fields) return;
+  const field = fields[1];
+  if (!field) return;
+
+  const ship = field.find((row) => row.has(dot));
+  if (!ship) return;
+
+  if (ship.size > 1) {
+    sendAttackMessage(gameId, 0, x, y, 'shot');
+    ship.delete(dot);
+
+    console.log('Result: ', `shot`);
+    return;
+  }
+
+  const realShips = allShips.get(gameId);
+  if (!realShips) return;
+  const realShip = realShips[0];
+  if (!realShip) return;
+  const shipInd = ship.get(dot);
+  if (shipInd === undefined) return;
+  killShip(realShip[shipInd], gameId, 0, list);
+  ship.delete(dot);
+
+  if (lastShip(field)) {
+    finishSingle(gameId, 0, server);
+  }
+  botAttack(gameId, server);
+};
 
 export const attackHandler = (
   { x, y, gameId, indexPlayer }: Attack,
@@ -355,6 +457,13 @@ export const attackHandler = (
   turn(gameId);
 };
 
+export const xAndY = (dot: number) => {
+  const stringDot = dot.toString();
+  const x = Number(stringDot[1] || stringDot[0]);
+  const y = Number(stringDot[1] ? stringDot[0] : 0);
+  return { x, y };
+};
+
 export const randomAttackHandler = (
   { indexPlayer, gameId }: RandomAttack,
   server: Server,
@@ -372,10 +481,7 @@ export const randomAttackHandler = (
 
   const randomDot = arr[Math.floor(Math.random() * arr.length)];
   list.delete(randomDot);
-  const stringDot = randomDot.toString();
-
-  const x = Number(stringDot[1] || stringDot[0]);
-  const y = Number(stringDot[1] ? stringDot[0] : 0);
+  const { x, y } = xAndY(randomDot);
   sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
   turn(gameId);
   console.log('Result: ', `random shot`);
@@ -395,9 +501,14 @@ export const closeOpenedRoom = (server: Server) => {
 
   Array.from(games.entries()).forEach(([key, users]) => {
     users.forEach((user, ind) => {
-      if (!server.clients.has(user.ws)) {
+      if (!server.clients.has(user.ws) && !isSingleMode(key)) {
         finish(key, ind ? 0 : 1, server);
       }
     });
   });
+};
+
+export const isSingleMode = (gameId: number) => {
+  const game = games.get(gameId);
+  return game && game.length === 1;
 };
