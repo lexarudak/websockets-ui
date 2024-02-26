@@ -11,6 +11,7 @@ import {
   killShip,
   lastShip,
   sendAttackMessage,
+  singleTurn,
   xAndY,
 } from '../utils/helpers';
 
@@ -58,6 +59,13 @@ const tryToGuess = (cleanPlaces: Set<number>, currentAttack: number[]) => {
 };
 
 export const botAttack = (gameId: number, server: Server) => {
+  singleTurn(gameId, true);
+  return setTimeout(() => {
+    botAttack2(gameId, server);
+  }, 1000);
+};
+
+export const botAttack2 = (gameId: number, server: Server) => {
   const currentAttack = allCurrentAttacks.get(gameId) || [];
   const cleanPlaces = allCleanPlaces.get(gameId);
   if (!cleanPlaces) return;
@@ -76,6 +84,7 @@ export const botAttack = (gameId: number, server: Server) => {
   if (list.has(dot)) {
     list.delete(dot);
     sendAttackMessage(gameId, 1, x, y, 'miss');
+    singleTurn(gameId, false);
     console.log('Result: ', `BOT miss`, { x, y });
     return;
   }
@@ -107,6 +116,7 @@ export const botAttack = (gameId: number, server: Server) => {
   killShip(realShip[shipInd], gameId, 1, cleanPlaces);
   ship.delete(dot);
   allCurrentAttacks.set(gameId, []);
+  singleTurn(gameId, false);
 
   if (lastShip(field)) {
     finishSingle(gameId, 1, server);

@@ -11,6 +11,7 @@ import {
   getInitField,
   getRestList,
   isSingleMode,
+  singleTurn,
   start_game,
   start_single_game,
   turn,
@@ -71,5 +72,6 @@ export const add_ships = (data: string) => {
 
   if (isSingleMode(gameId)) {
     start_single_game(gameId);
+    singleTurn(gameId, false);
   }
 };

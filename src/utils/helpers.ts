@@ -189,6 +189,7 @@ export const start_game = (gameId: number) => {
 export const start_single_game = (gameId: number) => {
   const ship = allShips.get(gameId);
   const user = games.get(gameId);
+  allTurns.set(gameId, 0);
   if (!ship || !user) return;
 
   const data = {
@@ -225,6 +226,25 @@ export const turn = (gameId: number) => {
     });
 
     allTurns.set(gameId, turn ? 0 : 1);
+    console.log('Result: ', `next player turn`);
+  }
+};
+
+export const singleTurn = (gameId: number, pause: boolean) => {
+  const users = games.get(gameId);
+
+  if (users && turn !== undefined) {
+    users[0].ws.send(
+      JSON.stringify({
+        type: 'turn',
+        id: 0,
+        data: JSON.stringify({
+          currentPlayer: pause ? 1 : 0,
+        }),
+      }),
+    );
+
+    allTurns.set(gameId, pause ? 1 : 0);
     console.log('Result: ', `next player turn`);
   }
 };
@@ -359,6 +379,7 @@ export const singleAttackHandler = (
   { x, y, gameId }: Attack,
   server: Server,
 ) => {
+  if (allTurns.get(gameId)) return;
   const dot = x + y * 10;
   const restLists = allRestLists.get(gameId);
   if (!restLists) return;
@@ -484,6 +505,9 @@ export const randomAttackHandler = (
   const { x, y } = xAndY(randomDot);
   sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
   turn(gameId);
+  if (isSingleMode(gameId)) {
+    botAttack(gameId, server);
+  }
   console.log('Result: ', `random shot`);
 };
 
