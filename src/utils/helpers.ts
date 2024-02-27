@@ -1,0 +1,538 @@
+import { WebSocket, Server } from 'ws';
+
+import {
+  Attack,
+  AttackAction,
+  Field,
+  IndexPlayer,
+  RandomAttack,
+  Ship,
+  User,
+  allFields,
+  allRestLists,
+  allShips,
+  allTurns,
+  db,
+  games,
+  rooms,
+  winners,
+  wsUsers,
+} from '../db/db';
+import { botAttack } from '../bot/bot';
+
+const counter = () => {
+  let id = 0;
+  return () => {
+    id++;
+    return id;
+  };
+};
+
+export const getIndex = counter();
+export const getRoomIndex = counter();
+export const getGameIndex = counter();
+
+export const createUser = (name: string, password: string, ws: WebSocket) => {
+  const newUser = {
+    index: getIndex(),
+    name,
+    password,
+    ws,
+  };
+  db.set(name, newUser);
+  wsUsers.set(ws, {
+    index: newUser.index,
+    name,
+    ws,
+  });
+  console.log('Result: ', `user ${name} login`);
+  return newUser;
+};
+
+export const sendToAll = (type: string, data: string, server: Server) => {
+  const req = {
+    type,
+    id: 0,
+    data,
+  };
+
+  server.clients.forEach((client) => {
+    client.send(JSON.stringify(req));
+  });
+};
+
+export const getRoomsJson = (roomsArr: [number, User[]][]) => {
+  return JSON.stringify(
+    roomsArr.map(([roomId, roomUsers]) => {
+      return {
+        roomId,
+        roomUsers: roomUsers.map(({ name, index }) => ({ name, index })),
+      };
+    }),
+  );
+};
+
+export const update_winners = (server: Server, ws?: WebSocket) => {
+  if (ws) {
+    const user = wsUsers.get(ws);
+    if (user) {
+      const { name } = user;
+      const win = winners.get(name) || 0;
+      winners.set(name, win + 1);
+    }
+  }
+  const arr = Array.from(winners.entries());
+
+  sendToAll(
+    'update_winners',
+    JSON.stringify(
+      arr
+        .map(([name, wins]) => ({ name, wins }))
+        .sort(({ wins: a }, { wins: b }) => b - a),
+    ),
+    server,
+  );
+  console.log('Result: winners updated');
+};
+
+export const update_room = (server: Server) => {
+  const roomsArr = Array.from(rooms);
+
+  sendToAll(
+    'update_room',
+    roomsArr.length ? getRoomsJson(roomsArr) : '[]',
+    server,
+  );
+  console.log('Result: ', `room updated`);
+};
+
+export const create_game = (room: User[]) => {
+  const idGame = getGameIndex();
+  games.set(idGame, room);
+
+  room.forEach(({ ws }, ind) => {
+    if (ws) {
+      ws.send(
+        JSON.stringify({
+          type: 'create_game',
+          id: 0,
+          data: JSON.stringify({
+            idGame,
+            idPlayer: ind,
+          }),
+        }),
+      );
+    }
+  });
+  console.log('Result: ', `game created`);
+};
+
+const addShip = (
+  x: number,
+  y: number,
+  length: number,
+  direction: boolean,
+  shipNumber: number,
+) => {
+  const map = new Map<number, number>();
+  for (let i = 0; i < length; i++) {
+    const value = x + y * 10 + (direction ? i * 10 : i);
+    map.set(value, shipNumber);
+  }
+  return map;
+};
+
+export const getInitField = (ships: Ship[]): Field =>
+  ships.map(({ position: { x, y }, direction, length }, id) =>
+    addShip(x, y, length, direction, id),
+  );
+
+export const getRestList = (field: Field) => {
+  const arr = field
+    .flat(1)
+    .map((map) => Array.from(map.keys()))
+    .flat(1);
+  const validSet = new Set(arr);
+  const set = new Set<number>();
+  for (let i = 0; i < 100; i++) {
+    if (!validSet.has(i)) set.add(i);
+  }
+  return set;
+};
+
+export const start_game = (gameId: number) => {
+  const users = games.get(gameId);
+  allTurns.set(gameId, 0);
+
+  if (users) {
+    users.forEach(({ ws }, ind) => {
+      const ship = allShips.get(gameId);
+      if (!ship) return;
+
+      const data = {
+        ships: ship[ind as IndexPlayer],
+        currentPlayerIndex: ind,
+      };
+
+      ws.send(
+        JSON.stringify({
+          type: 'start_game',
+          data: JSON.stringify(data),
+          id: 0,
+        }),
+      );
+    });
+    console.log('Result: ', `game starts`);
+  }
+};
+
+export const start_single_game = (gameId: number) => {
+  const ship = allShips.get(gameId);
+  const user = games.get(gameId);
+  allTurns.set(gameId, 0);
+  if (!ship || !user) return;
+
+  const data = {
+    ships: ship[0],
+    currentPlayerIndex: 0,
+  };
+
+  user[0].ws.send(
+    JSON.stringify({
+      type: 'start_game',
+      data: JSON.stringify(data),
+      id: 0,
+    }),
+  );
+
+  console.log('Result: ', `single game starts`);
+};
+
+export const turn = (gameId: number) => {
+  const users = games.get(gameId);
+  const turn = allTurns.get(gameId);
+
+  if (users && turn !== undefined) {
+    users.forEach(({ ws }) => {
+      ws.send(
+        JSON.stringify({
+          type: 'turn',
+          id: 0,
+          data: JSON.stringify({
+            currentPlayer: turn ? 0 : 1,
+          }),
+        }),
+      );
+    });
+
+    allTurns.set(gameId, turn ? 0 : 1);
+    console.log('Result: ', `next player turn`);
+  }
+};
+
+export const singleTurn = (gameId: number, pause: boolean) => {
+  const users = games.get(gameId);
+
+  if (users && turn !== undefined) {
+    users[0].ws.send(
+      JSON.stringify({
+        type: 'turn',
+        id: 0,
+        data: JSON.stringify({
+          currentPlayer: pause ? 1 : 0,
+        }),
+      }),
+    );
+
+    allTurns.set(gameId, pause ? 1 : 0);
+    console.log('Result: ', `next player turn`);
+  }
+};
+
+export const sendAttackMessage = (
+  gameId: number,
+  indexPlayer: number,
+  x: number,
+  y: number,
+  action: AttackAction,
+) => {
+  const users = games.get(gameId);
+  if (!users) return;
+
+  const data = JSON.stringify({
+    position: {
+      x,
+      y,
+    },
+    currentPlayer: indexPlayer,
+    status: action,
+  });
+  users.forEach(({ ws }) => {
+    ws.send(
+      JSON.stringify({
+        type: 'attack',
+        data,
+        index: 0,
+      }),
+    );
+  });
+};
+
+export const finishSingle = (
+  gameId: number,
+  indexPlayer: number,
+  server: Server,
+) => {
+  const users = games.get(gameId);
+  if (!users) return;
+  const { name, ws } = users[0];
+
+  const data = JSON.stringify({
+    winPlayer: indexPlayer,
+  });
+
+  ws.send(
+    JSON.stringify({
+      type: 'finish',
+      data,
+      index: 0,
+    }),
+  );
+  games.delete(gameId);
+  if (!indexPlayer) update_winners(server, ws);
+
+  console.log('Result: ', `user ${name} wins`);
+};
+
+export const finish = (gameId: number, indexPlayer: number, server: Server) => {
+  const users = games.get(gameId);
+  if (!users) return;
+  const { name, ws } = users[indexPlayer];
+
+  const data = JSON.stringify({
+    winPlayer: indexPlayer,
+  });
+
+  users.forEach(({ ws }) => {
+    ws.send(
+      JSON.stringify({
+        type: 'finish',
+        data,
+        index: 0,
+      }),
+    );
+  });
+  games.delete(gameId);
+  update_winners(server, ws);
+
+  console.log('Result: ', `user ${name} wins`);
+};
+
+const lookAround = (
+  x: number,
+  y: number,
+  list: Set<number>,
+  gameId: number,
+  indexPlayer: number,
+  cleanField?: Set<number>,
+) => {
+  [
+    [x - 1, y - 1],
+    [x, y - 1],
+    [x + 1, y - 1],
+    [x - 1, y],
+    [x + 1, y],
+    [x - 1, y + 1],
+    [x, y + 1],
+    [x + 1, y + 1],
+  ].forEach(([newX, newY]) => {
+    const dot = newX + newY * 10;
+    if (list.has(dot) && newX >= 0 && newY >= 0 && newX < 10 && newY < 10) {
+      list.delete(dot);
+      if (cleanField) cleanField.delete(dot);
+      console.log('Result: ', 'look around', { newX, newY });
+      sendAttackMessage(gameId, indexPlayer, newX, newY, 'miss');
+    }
+  });
+};
+
+export const killShip = (
+  ship: Ship,
+  gameId: number,
+  indexPlayer: number,
+  list: Set<number>,
+  cleanField?: Set<number>,
+) => {
+  for (let i = 0; i < ship.length; i++) {
+    const x = ship.direction ? ship.position.x : ship.position.x + i;
+    const y = ship.direction ? ship.position.y + i : ship.position.y;
+    lookAround(x, y, list, gameId, indexPlayer, cleanField);
+    sendAttackMessage(gameId, indexPlayer, x, y, 'killed');
+  }
+  console.log('Result: ', `ship ${ship.type} was killed`);
+};
+
+export const lastShip = (field: Field) =>
+  !field.some((ship) => ship.size !== 0);
+
+export const singleAttackHandler = (
+  { x, y, gameId }: Attack,
+  server: Server,
+) => {
+  if (allTurns.get(gameId)) return;
+  const dot = x + y * 10;
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return;
+  const list = restLists[1];
+  if (!list) return;
+
+  if (list.has(dot)) {
+    list.delete(dot);
+    sendAttackMessage(gameId, 0, x, y, 'miss');
+    botAttack(gameId, server);
+
+    console.log('Result: ', `miss`);
+    return;
+  }
+
+  const fields = allFields.get(gameId);
+  if (!fields) return;
+  const field = fields[1];
+  if (!field) return;
+
+  const ship = field.find((row) => row.has(dot));
+  if (!ship) return;
+
+  if (ship.size > 1) {
+    sendAttackMessage(gameId, 0, x, y, 'shot');
+    ship.delete(dot);
+
+    console.log('Result: ', `shot`);
+    return;
+  }
+
+  const realShips = allShips.get(gameId);
+  if (!realShips) return;
+  const realShip = realShips[1];
+  if (!realShip) return;
+  const shipInd = ship.get(dot);
+  if (shipInd === undefined) return;
+  killShip(realShip[shipInd], gameId, 0, list);
+  ship.delete(dot);
+
+  if (lastShip(field)) {
+    finishSingle(gameId, 0, server);
+  }
+  botAttack(gameId, server);
+};
+
+export const attackHandler = (
+  { x, y, gameId, indexPlayer }: Attack,
+  server: Server,
+) => {
+  if (allTurns.get(gameId) !== indexPlayer) return;
+  const dot = x + y * 10;
+
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return;
+  const list = restLists[indexPlayer ? 0 : 1];
+  if (!list) return;
+
+  if (list.has(dot)) {
+    list.delete(dot);
+    sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
+    turn(gameId);
+
+    console.log('Result: ', `miss`);
+    return;
+  }
+
+  const fields = allFields.get(gameId);
+  if (!fields) return;
+  const field = fields[indexPlayer ? 0 : 1];
+  if (!field) return;
+
+  const ship = field.find((row) => row.has(dot));
+  if (!ship) return;
+
+  if (ship.size > 1) {
+    sendAttackMessage(gameId, indexPlayer, x, y, 'shot');
+    ship.delete(dot);
+
+    console.log('Result: ', `shot`);
+    return;
+  }
+
+  const realShips = allShips.get(gameId);
+  if (!realShips) return;
+  const realShip = realShips[indexPlayer ? 0 : 1];
+  if (!realShip) return;
+  const shipInd = ship.get(dot);
+  if (shipInd === undefined) return;
+  killShip(realShip[shipInd], gameId, indexPlayer, list);
+  ship.delete(dot);
+
+  if (lastShip(field)) {
+    finish(gameId, indexPlayer, server);
+  }
+  turn(gameId);
+};
+
+export const xAndY = (dot: number) => {
+  const stringDot = dot.toString();
+  const x = Number(stringDot[1] || stringDot[0]);
+  const y = Number(stringDot[1] ? stringDot[0] : 0);
+  return { x, y };
+};
+
+export const randomAttackHandler = (
+  { indexPlayer, gameId }: RandomAttack,
+  server: Server,
+) => {
+  const restLists = allRestLists.get(gameId);
+  if (!restLists) return false;
+  const list = restLists[indexPlayer ? 0 : 1];
+  if (!list) return false;
+
+  const arr = Array.from(list);
+
+  if (!arr.length) {
+    finish(gameId, indexPlayer ? 0 : 1, server);
+  }
+
+  const randomDot = arr[Math.floor(Math.random() * arr.length)];
+  list.delete(randomDot);
+  const { x, y } = xAndY(randomDot);
+  sendAttackMessage(gameId, indexPlayer, x, y, 'miss');
+  turn(gameId);
+  if (isSingleMode(gameId)) {
+    botAttack(gameId, server);
+  }
+  console.log('Result: ', `random shot`);
+};
+
+export const closeOpenedRoom = (server: Server) => {
+  Array.from(rooms.entries()).forEach(([key, users]) => {
+    users.forEach((user) => {
+      if (!server.clients.has(user.ws)) {
+        rooms.delete(key);
+        wsUsers.delete(user.ws);
+        console.log('Result: ', `User ${user.name} leaves`);
+        update_room(server);
+      }
+    });
+  });
+
+  Array.from(games.entries()).forEach(([key, users]) => {
+    users.forEach((user, ind) => {
+      if (!server.clients.has(user.ws) && !isSingleMode(key)) {
+        finish(key, ind ? 0 : 1, server);
+      }
+    });
+  });
+};
+
+export const isSingleMode = (gameId: number) => {
+  const game = games.get(gameId);
+  return game && game.length === 1;
+};
